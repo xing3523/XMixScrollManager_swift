@@ -1,0 +1,15 @@
+use_frameworks!
+source 'https://cdn.cocoapods.org/'
+platform :ios, '9.0'
+
+inhibit_all_warnings!
+target 'XMixScrollManager_swift_Example' do
+  pod 'XMixScrollManager_swift', :path => '../'
+  pod 'SnapKit'
+  pod 'MJRefresh'
+  target 'XMixScrollManager_swift_Tests' do
+    inherit! :search_paths
+
+    
+  end
+end

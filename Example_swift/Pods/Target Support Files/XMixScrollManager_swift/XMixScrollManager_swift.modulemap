@@ -1,0 +1,6 @@
+framework module XMixScrollManager_swift {
+  umbrella header "XMixScrollManager_swift-umbrella.h"
+
+  export *
+  module * { export * }
+}

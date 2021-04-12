@@ -1,0 +1,27 @@
+PODS:
+  - MJRefresh (3.4.3)
+  - SnapKit (4.2.0)
+  - XMixScrollManager_swift (0.1.0)
+
+DEPENDENCIES:
+  - MJRefresh
+  - SnapKit
+  - XMixScrollManager_swift (from `../`)
+
+SPEC REPOS:
+  trunk:
+    - MJRefresh
+    - SnapKit
+
+EXTERNAL SOURCES:
+  XMixScrollManager_swift:
+    :path: "../"
+
+SPEC CHECKSUMS:
+  MJRefresh: 53e3e3219f204425ee6d3e62e8733d3295944cd6
+  SnapKit: fe8a619752f3f27075cc9a90244d75c6c3f27e2a
+  XMixScrollManager_swift: 6ffe2817d71437fd97be7e5b2b3c20715871ff10
+
+PODFILE CHECKSUM: 0a8b138b4ecdc2753242537613e4bf4a838e8c76
+
+COCOAPODS: 1.8.4
