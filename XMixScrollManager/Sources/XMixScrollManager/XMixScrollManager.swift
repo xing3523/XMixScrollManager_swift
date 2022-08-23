@@ -6,10 +6,11 @@
 //
 
 import Foundation
+import UIKit
 
 private let XKeyPath = "contentOffset"
 private let XMixScrollUndefinedValue: CGFloat = -999
-/// 下拉支持
+/// Pull type
 public enum XMixScrollPullType: Int {
     case none = 0
     case main
@@ -17,7 +18,7 @@ public enum XMixScrollPullType: Int {
     case all
 }
 
-/// 进度显示
+/// Scroll bar display
 public enum XShowIndicatorType: Int {
     case none = 0
     case sub
@@ -25,8 +26,9 @@ public enum XShowIndicatorType: Int {
 }
 
 open class XMixScrollManager: NSObject {
-    // MARK: - 公开属性及方法
+    // MARK: - public properties and methods
 
+    /// The movable distance of contentScrollView, generally the relative coordinate Y in mainScrollView, the default XMixScrollUndefinedValue, takes effect immediately, dynamic simulation will not take effect before assigning a valid value
     /// contentScrollView 可移动的距离 一般为在mainScrollView里的相对坐标Y 默认 XMixScrollUndefinedValue 即时生效  赋值有效值之前动态模拟不会生效
     open var contentScrollDistance: CGFloat = XMixScrollUndefinedValue {
         willSet {
@@ -34,7 +36,7 @@ open class XMixScrollManager: NSObject {
         }
     }
 
-    /// 默认main可下拉
+    /// The default main can be pulled down
     open var mixScrollPullType: XMixScrollPullType {
         set {
             _mixScrollPullType = newValue
@@ -47,7 +49,8 @@ open class XMixScrollManager: NSObject {
         }
     }
 
-    /// 滑动条显示 默认切换显示
+    /// Scroll bar display, automatically switch the display by default
+    /// 默认切换显示
     open var showIndicatorType: XShowIndicatorType = .autoChange {
         didSet {
             mainScrollView.property.needShowsVerticalScrollIndicator = showIndicatorType == .autoChange
@@ -58,7 +61,8 @@ open class XMixScrollManager: NSObject {
         }
     }
 
-    /// 点击状态栏回顶部时  是否直接回到mainScrollView顶部 默认Yes
+    /// Whether to return directly to the top of the mainScrollView when clicking the status bar back to the top
+    /// 点击状态栏回顶部时，是否直接回到mainScrollView顶部，默认Yes
     open var scrollsToMainTop: Bool {
         set {
             _scrollsToMainTop = newValue
@@ -71,7 +75,8 @@ open class XMixScrollManager: NSObject {
         }
     }
 
-    /// 是否开启动态模拟 默认 NO  在main范围内content范围外 上拉没有过度滑动效果 YES则添加模拟效果
+    /// Whether to enable dynamic simulation, default NO, in the main scope outside the content scope, pull up has not transition sliding effect, YES, add simulation continuous sliding effect
+    /// 是否开启动态模拟，默认 NO，在main范围内content范围外，上拉没有过渡滑动效果，YES则添加模拟连续滑动效果
     open var enableDynamicSimulate: Bool {
         set {
             _enableDynamicSimulate = newValue
@@ -84,11 +89,17 @@ open class XMixScrollManager: NSObject {
         }
     }
 
+    /// Rolling resistance, default 2
     /// 动态模拟过度滑动效果 阻力参数 默认 2
     open var dynamicResistance: Float = 2
-    /// 开启独立属性设置 默认NO
+    /// Enable independent property setting, default NO
+    /// 开启独立属性设置，默认NO
     open var enableCustomConfig = false
 
+    /// Method of initialization
+    /// - Parameters:
+    ///   - scrollView: Main scroll view
+    ///   - contentScrollViews: contentScrollViews
     public init(scrollView: UIScrollView, contentScrollViews: [UIScrollView]?) {
         super.init()
         let p = scrollView.property
@@ -119,6 +130,10 @@ open class XMixScrollManager: NSObject {
 //        print(NSStringFromClass(self.classForCoder) + "deinit")
     }
 
+    /// Delay setting the contentView
+    /// - Parameters:
+    ///   - scrollView: content scrollView
+    ///   - index: Index of content view, eg: horizontal position from left to right
     open func addContentScrollView(_ scrollView: UIScrollView, withIndex index: Int) {
         let p = scrollView.property
         p.canScroll = !mainScrollView!.property.canScroll
@@ -134,6 +149,7 @@ open class XMixScrollManager: NSObject {
         checkScrollsToTop()
     }
 
+    /// Set IndicatorType for a content view, It only works when enableCustomConfig is true
     open func setShowIndicatorType(_ showIndicatorType: XShowIndicatorType, contentScrollView: UIScrollView) {
         if !contentScrollViews.contains(contentScrollView) {
             return
@@ -141,6 +157,7 @@ open class XMixScrollManager: NSObject {
         indicatorTypeDic[contentScrollView.property.index] = showIndicatorType
     }
 
+    /// Set PullType for a content view, It only works when enableCustomConfig is true
     open func setScrollPullType(_ pullType: XMixScrollPullType, contentScrollView: UIScrollView) {
         if !contentScrollViews.contains(contentScrollView) {
             return
@@ -148,6 +165,7 @@ open class XMixScrollManager: NSObject {
         pullTypeDic[contentScrollView.property.index] = pullType
     }
 
+    /// Set Whether Scrolls To Main Top for a content view, It only works when enableCustomConfig is true
     open func setScrollsToMainTop(_ scrollsToMainTop: Bool, contentScrollView: UIScrollView) {
         if !contentScrollViews.contains(contentScrollView) {
             return
@@ -155,6 +173,7 @@ open class XMixScrollManager: NSObject {
         scrollsToMainTopDic[contentScrollView.property.index] = scrollsToMainTop
     }
 
+    /// Set Whether setEnableDynamicSimulate for a content view, It only works when enableCustomConfig is true
     open func setEnableDynamicSimulate(_ EnableDynamicSimulate: Bool, contentScrollView: UIScrollView) {
         if !contentScrollViews.contains(contentScrollView) {
             return
@@ -169,7 +188,7 @@ open class XMixScrollManager: NSObject {
     private var _enableDynamicSimulate = false
 
     private var mainScrollView: UIScrollView!
-    private var contentScrollViews = [UIScrollView]()
+    public private(set) var contentScrollViews = [UIScrollView]()
 
     /// 是否已获取到contentSuperScrollView
     private var hasGetContentSuper = false
@@ -190,6 +209,7 @@ open class XMixScrollManager: NSObject {
     private var currentSimulateIndex = 0
     /// 当前展示的contentScrollView index
     private var currentIndex = 0
+    /// Ignore it,  not important
     /// 一般用不着  动态模拟判断时 不判断坐标点
     open var useAll = false
 
@@ -202,9 +222,9 @@ open class XMixScrollManager: NSObject {
 
 // MARK: - XMixScrollManager privite func
 
-extension XMixScrollManager {
+private extension XMixScrollManager {
     /// 校准scrollsToTop
-    private func checkScrollsToTop() {
+    func checkScrollsToTop() {
         if scrollsToMainTop || contentSuperScrollView == nil {
             mainScrollView.scrollsToTop = true
             return
@@ -221,7 +241,7 @@ extension XMixScrollManager {
     }
 
     /// 切换 独立属性更新进度条状态
-    private func checkCustomConfig() {
+    func checkCustomConfig() {
         if !enableCustomConfig {
             return
         }
@@ -233,7 +253,7 @@ extension XMixScrollManager {
     }
 
     /// check scrollsToTop status
-    private func changeMainScrollStatus(canScroll: Bool) {
+    func changeMainScrollStatus(canScroll: Bool) {
         if mainScrollView.property.canScroll == canScroll {
             return
         }
@@ -251,7 +271,7 @@ extension XMixScrollManager {
     }
 
     /// 获取子scrollView的父scrollView
-    private func checkContentSuperScrollView() {
+    func checkContentSuperScrollView() {
         if hasGetContentSuper {
             return
         }
@@ -300,7 +320,7 @@ extension XMixScrollManager: XDynamicSimulateDelegate {
 // MARK: - XMixScrollManager srollView observer
 
 extension XMixScrollManager {
-    open override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+    override open func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
         guard keyPath == XKeyPath, contentScrollDistance != XMixScrollUndefinedValue else {
             return
         }
@@ -425,6 +445,7 @@ private class XScrollViewProperty {
 }
 
 // MARK: - UIScrollView category
+
 private var kXScrollViewPropertyKey: UInt8 = 0
 extension UIScrollView: UIGestureRecognizerDelegate {
     fileprivate var property: XScrollViewProperty {
@@ -438,13 +459,11 @@ extension UIScrollView: UIGestureRecognizerDelegate {
     }
 
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        // 阻止横竖联动
         if property.markScroll {
             if let scrollView = otherGestureRecognizer.view as? UIScrollView, scrollView.property.markScroll {
                 return true
             }
         }
-        // 阻止其他意外联动
         return false
     }
 
@@ -452,7 +471,7 @@ extension UIScrollView: UIGestureRecognizerDelegate {
         contentOffset = .zero
     }
 
-    open override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+    override open func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         if let scrollManager = property.scrollManager {
             if scrollManager.enableDynamicSimulate {
                 scrollManager.dynamicSimulate.stop()
@@ -469,7 +488,7 @@ extension UIScrollView: UIGestureRecognizerDelegate {
     }
 }
 
-// MARK: - DynamicSimulate 动态模拟
+// MARK: - Dynamic Simulate 动态模拟
 
 private protocol XDynamicSimulateDelegate: NSObjectProtocol {
     func willMoveY(_ movey: CGFloat)
@@ -532,7 +551,7 @@ private class XDynamicSimulate: NSObject {
      d – dimension, either width or height */
     private func rubberBandDistance(offset: CGFloat, dimension: CGFloat) -> CGFloat {
         let constant: CGFloat = 0.55
-        let absOffset = CGFloat(fabs(offset))
+        let absOffset = abs(offset)
         var result: CGFloat = (constant * absOffset * dimension) / (dimension + constant * absOffset)
         result = offset < 0 ? -result : result
         return result

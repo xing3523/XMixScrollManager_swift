@@ -8,12 +8,13 @@
 
 import MJRefresh
 import UIKit
-import XMixScrollManager_swift
+//import XMixScrollManager_swift
+import XMixScrollManager
 
 class PageVC: UIViewController {
     let scrollView = UIScrollView()
     let childView = ChildView()
-    var scrollManager: XMixScrollManager!
+    lazy var scrollManager = XMixScrollManager(scrollView: scrollView, contentScrollViews: childView.contentViewArray)
     lazy var settingView: SettingView = {
         let view = SettingView()
         view.hideBlock = { [weak self] in
@@ -24,14 +25,25 @@ class PageVC: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        if #available(iOS 13.0, *) {
+            let apperance = UINavigationBarAppearance()
+            apperance.backgroundColor = .white
+            apperance.shadowImage = UIImage()
+            apperance.shadowColor = nil
+            navigationController?.navigationBar.standardAppearance = apperance
+            navigationController?.navigationBar.scrollEdgeAppearance = apperance
+        }
+        navigationController?.navigationBar.isTranslucent = false
         setUI()
     }
 
     func setUI() {
-        navigationItem.title = "ScrollView嵌套"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "设置", style: .plain, target: self, action: #selector(settingClick))
+        navigationItem.title = "Demo"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Settings", style: .plain, target: self, action: #selector(settingClick))
         view.backgroundColor = .white
-        scrollView.contentInsetAdjustmentBehavior = .never
+        if #available(iOS 11.0, *) {
+            scrollView.contentInsetAdjustmentBehavior = .never
+        }
         scrollView.mj_header = MJRefreshNormalHeader(refreshingBlock: { [weak self] in
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 self?.scrollView.mj_header?.endRefreshing()
@@ -47,7 +59,9 @@ class PageVC: UIViewController {
     func addContentView() {
         let topHeight = 300
         let headButton = UIButton()
-        headButton.setTitle("height:\(topHeight):点击改变高度", for: .normal)
+        headButton.titleLabel?.textAlignment = .center
+        headButton.setTitle("height:\(topHeight)\nClick to change height", for: .normal)
+        headButton.titleLabel?.numberOfLines = 0
         headButton.addTarget(self, action: #selector(changeHeadHeightClick(_:)), for: .touchUpInside)
         headButton.backgroundColor = .brown
         let navBottom = navigationController!.navigationBar.frame.maxY
@@ -64,7 +78,6 @@ class PageVC: UIViewController {
             make.width.equalTo(headButton)
             make.top.equalTo(headButton.snp.bottom)
         }
-        scrollManager = XMixScrollManager(scrollView: scrollView, contentScrollViews: childView.contentViewArray)
         scrollManager.contentScrollDistance = CGFloat(topHeight)
         reloadSetting()
     }
@@ -75,7 +88,7 @@ class PageVC: UIViewController {
         sender.snp.updateConstraints { make in
             make.height.equalTo(topHeight)
         }
-        sender.setTitle("height:\(topHeight):点击改变高度", for: .normal)
+        sender.setTitle("height:\(topHeight)\nClick to change height", for: .normal)
         scrollManager.contentScrollDistance = CGFloat(topHeight)
     }
 
@@ -146,7 +159,7 @@ class SettingView: UIView {
 
     func setUI() {
         backgroundColor = UIColor.black.withAlphaComponent(0.5)
-        let titles = ["进度条显示:", "支持下拉:", "回到顶部:", "动态模拟:", "单独设置属性:"]
+        let titles = ["Scroll bar show:", "Pull down refresh:", "Scroll to top:", "Continuous scrolling:", "Set individually:"]
         let segmentTitles = [["hide", "sub", "change"],
                              ["none", "main", "sub", "all"],
                              ["main", "sub"],
@@ -170,7 +183,7 @@ class SettingView: UIView {
         }
         contentView.addSubview(stackView)
         stackView.snp.makeConstraints { make in
-            make.edges.equalTo(UIEdgeInsets(top: 15, left: 15, bottom: 15, right: 15))
+            make.edges.equalTo(UIEdgeInsets(top: 15, left: 8, bottom: 15, right: 8))
         }
 
         class SelectView: UIView {
@@ -179,6 +192,9 @@ class SettingView: UIView {
                 super.init(frame: .zero)
                 let label = UILabel()
                 label.text = title
+                label.adjustsFontSizeToFitWidth = true
+                label.minimumScaleFactor = 0.7
+                label.textAlignment = .left
                 addSubview(label)
                 label.snp.makeConstraints { make in
                     make.left.equalToSuperview()
@@ -195,9 +211,10 @@ class SettingView: UIView {
                     segmentControl.selectedSegmentIndex = 1
                 }
                 segmentControl.snp.makeConstraints { make in
-                    make.left.equalTo(120)
+                    make.left.equalTo(label.snp.right)
+                    make.left.equalTo(150)
                     make.centerY.equalToSuperview()
-                    make.right.equalTo(-10)
+                    make.right.equalTo(-8)
                 }
             }
 

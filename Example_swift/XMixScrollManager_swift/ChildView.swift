@@ -39,7 +39,9 @@ class ChildView: UIView, UIScrollViewDelegate {
         addSubview(scrollView)
         scrollView.isPagingEnabled = true
         scrollView.delegate = self
-        scrollView.contentInsetAdjustmentBehavior = .never
+        if #available(iOS 11.0, *) {
+            scrollView.contentInsetAdjustmentBehavior = .never
+        }
         scrollView.snp.makeConstraints { make in
             make.left.right.bottom.equalToSuperview()
             make.top.equalTo(segment.snp.bottom).offset(5)
@@ -95,13 +97,13 @@ class ChildContentView: UIView, UITableViewDelegate, UITableViewDataSource {
                 self?.tableView.mj_header?.endRefreshing()
             }
         })
-        tableView.mj_footer = MJRefreshBackStateFooter(refreshingBlock: { [weak self] in
+        tableView.mj_footer = MJRefreshAutoStateFooter(refreshingBlock: { [weak self] in
             guard let self = self else {
                 return
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.tableView.mj_footer!.endRefreshing()
-                self.dataArray.append(contentsOf: ["add", "add", "add", "add", "add"])
+                self.dataArray.append(contentsOf: Array(repeating: "add", count: 10))
                 self.tableView.reloadData()
             }
         })
