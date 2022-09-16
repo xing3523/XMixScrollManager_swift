@@ -18,6 +18,6 @@ Pod::Spec.new do |s|
   s.author           = { 'xing' => 'xinxof@foxmail.com' }
   s.source           = { :git => 'https://github.com/xing3523/XMixScrollManager_swift.git', :tag => s.version.to_s }
   s.ios.deployment_target = '9.0'
-  s.source_files = 'XMixScrollManager/Sources/**/*'
+  s.source_files = 'Sources/**/*'
   
 end

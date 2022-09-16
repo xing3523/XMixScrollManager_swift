@@ -8,8 +8,8 @@
 
 import MJRefresh
 import UIKit
-//import XMixScrollManager_swift
-import XMixScrollManager
+import XMixScrollManager_swift
+//import XMixScrollManager
 
 class PageVC: UIViewController {
     let scrollView = UIScrollView()

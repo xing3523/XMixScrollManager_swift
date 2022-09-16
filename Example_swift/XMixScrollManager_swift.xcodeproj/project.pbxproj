@@ -3,13 +3,12 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 52;
+	objectVersion = 46;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		216E41A226273086008586ED /* ChildView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 216E41A126273086008586ED /* ChildView.swift */; };
 		216E41A8262737DD008586ED /* PageVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 216E41A7262737DD008586ED /* PageVC.swift */; };
-		21DF21A928ACCC6100782F91 /* XMixScrollManager in Frameworks */ = {isa = PBXBuildFile; productRef = 21DF21A828ACCC6100782F91 /* XMixScrollManager */; };
 		607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD51AFB9204008FA782 /* AppDelegate.swift */; };
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
 		607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDC1AFB9204008FA782 /* Images.xcassets */; };
@@ -44,7 +43,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E56FA3DF5BEAE6BF00FD74C9 /* Pods_XMixScrollManager_swift_Example.framework in Frameworks */,
-				21DF21A928ACCC6100782F91 /* XMixScrollManager in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -151,7 +149,6 @@
 			);
 			name = XMixScrollManager_swift_Example;
 			packageProductDependencies = (
-				21DF21A828ACCC6100782F91 /* XMixScrollManager */,
 			);
 			productName = XMixScrollManager_swift;
 			productReference = 607FACD01AFB9204008FA782 /* XMixScrollManager_swift_Example.app */;
@@ -387,8 +384,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -401,10 +397,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = XMixScrollManager_swift/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MODULE_NAME = ExampleApp;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.demo.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -422,10 +415,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = XMixScrollManager_swift/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MODULE_NAME = ExampleApp;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.demo.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -456,13 +446,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		21DF21A828ACCC6100782F91 /* XMixScrollManager */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = XMixScrollManager;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 607FACC81AFB9204008FA782 /* Project object */;
 }

@@ -18,5 +18,5 @@
   "platforms": {
     "ios": "9.0"
   },
-  "source_files": "XMixScrollManager/Sources/**/*"
+  "source_files": "Sources/**/*"
 }
