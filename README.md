@@ -25,8 +25,8 @@ XMixScrollManager不关注UI布局，contentScrollDistance需要传入准确的�
 其他可选属性的使用可见demo。
 
 ## 部分效果图
-![](https://github.com/xing3523/XMixScrollManager/raw/master/Images/效果图1.gif)
-![](https://github.com/xing3523/XMixScrollManager/raw/master/Images/效果图2.gif)
+![](https://github.com/xing3523/Resources/raw/master/XMixScrollManager/demo1.gif)
+![](https://github.com/xing3523/Resources/raw/master/XMixScrollManager/demo2.gif)
 ## 安装
 
 ### CocoaPods
@@ -63,8 +63,8 @@ XMixScrollManager does not pay attention to UI layout, contentScrollDistance nee
 The use of other optional properties can be seen in the demo.
 
 ## Some renderings
-![](https://github.com/xing3523/XMixScrollManager/raw/master/Images/效果图1.gif)
-![](https://github.com/xing3523/XMixScrollManager/raw/master/Images/效果图2.gif)
+![](https://github.com/xing3523/Resources/raw/master/XMixScrollManager/demo1.gif)
+![](https://github.com/xing3523/Resources/raw/master/XMixScrollManager/demo2.gif)
 ## Install
 
 ### CocoaPods
