@@ -5,11 +5,14 @@
 //  Created by xing on 2021/4/12.
 //
 
-import Foundation
 import UIKit
 
-private let XKeyPath = "contentOffset"
+// MARK: - Constants
+
 private let XMixScrollUndefinedValue: CGFloat = -999
+
+// MARK: - Enums
+
 /// Pull type
 @objc public enum XMixScrollPullType: Int {
     case none = 0
@@ -25,79 +28,80 @@ private let XMixScrollUndefinedValue: CGFloat = -999
     case autoChange
 }
 
+// MARK: - Protocols
+
+private protocol XDynamicSimulateDelegate: AnyObject {
+    func willMoveY(_ movey: CGFloat)
+}
+
+// MARK: - Main Class
+
 open class XMixScrollManager: NSObject {
-    // MARK: - public properties and methods
+    // MARK: - Public Properties
 
     /// The movable distance of contentScrollView, generally the relative coordinate Y in mainScrollView, the default XMixScrollUndefinedValue, takes effect immediately, dynamic simulation will not take effect before assigning a valid value
-    /// contentScrollView 可移动的距离 一般为在mainScrollView里的相对坐标Y 默认 XMixScrollUndefinedValue 即时生效  赋值有效值之前动态模拟不会生效
-    @objc open var contentScrollDistance: CGFloat = XMixScrollUndefinedValue {
-        willSet {
-            contentScrollDistance = ceil(newValue)
-        }
+    private var _contentScrollDistance: CGFloat = XMixScrollUndefinedValue
+
+    @objc open var contentScrollDistance: CGFloat {
+        get { _contentScrollDistance }
+        set { _contentScrollDistance = ceil(newValue) }
     }
 
     /// The default main can be pulled down
     @objc open var mixScrollPullType: XMixScrollPullType {
-        set {
-            _mixScrollPullType = newValue
-        } get {
-            if enableCustomConfig {
-                return pullTypeDic[currentIndex] ?? _mixScrollPullType
-            } else {
-                return _mixScrollPullType
-            }
+        set { _mixScrollPullType = newValue }
+        get {
+            return enableCustomConfig ? (pullTypeDic[currentIndex] ?? _mixScrollPullType) : _mixScrollPullType
         }
     }
 
     /// Scroll bar display, automatically switch the display by default
-    /// 默认切换显示
     @objc open var showIndicatorType: XShowIndicatorType = .autoChange {
         didSet {
-            mainScrollView.property.needShowsVerticalScrollIndicator = showIndicatorType == .autoChange
-            mainScrollView.showsVerticalScrollIndicator = mainScrollView.property.needShowsVerticalScrollIndicator
-            for contentScrollView in contentScrollViews {
-                contentScrollView.property.needShowsVerticalScrollIndicator = showIndicatorType != .none
-            }
+            mainScrollView.scrollViewProperty.needShowsVerticalScrollIndicator = showIndicatorType == .autoChange
+            mainScrollView.showsVerticalScrollIndicator = mainScrollView.scrollViewProperty.needShowsVerticalScrollIndicator
+            contentScrollViews.forEach { $0.scrollViewProperty.needShowsVerticalScrollIndicator = showIndicatorType != .none }
         }
     }
 
     /// Whether to return directly to the top of the mainScrollView when clicking the status bar back to the top
-    /// 点击状态栏回顶部时，是否直接回到mainScrollView顶部，默认Yes
     @objc open var scrollsToMainTop: Bool {
-        set {
-            _scrollsToMainTop = newValue
-        } get {
-            if enableCustomConfig {
-                return scrollsToMainTopDic[currentIndex] ?? _scrollsToMainTop
-            } else {
-                return _scrollsToMainTop
-            }
+        set { _scrollsToMainTop = newValue }
+        get {
+            return enableCustomConfig ? (scrollsToMainTopDic[currentIndex] ?? _scrollsToMainTop) : _scrollsToMainTop
         }
     }
 
     /// Whether to enable dynamic simulation, default NO, in the main scope outside the content scope, pull up has not transition sliding effect, YES, add simulation continuous sliding effect
-    /// 是否开启动态模拟，默认 NO，在main范围内content范围外，上拉没有过渡滑动效果，YES则添加模拟连续滑动效果
     @objc open var enableDynamicSimulate: Bool {
-        set {
-            _enableDynamicSimulate = newValue
-        } get {
-            if enableCustomConfig {
-                return enableDynamicDic[currentIndex] ?? _enableDynamicSimulate
-            } else {
-                return _enableDynamicSimulate
-            }
+        set { _enableDynamicSimulate = newValue }
+        get {
+            return enableCustomConfig ? (enableDynamicDic[currentIndex] ?? _enableDynamicSimulate) : _enableDynamicSimulate
         }
     }
 
     /// Rolling resistance, default 2
-    /// 动态模拟过度滑动效果 阻力参数 默认 2
-    @objc open var dynamicResistance: Float = 2
+    @objc open var dynamicResistance: CGFloat = 2 {
+        didSet {
+            _dynamicSimulate?.resistance = dynamicResistance
+        }
+    }
+
     /// Enable independent property setting, default NO
-    /// 开启独立属性设置，默认NO
     @objc open var enableCustomConfig = false
+
     /// The upper height of the main ScrollView, which is used to determine whether dynamic simulation is in the range to be enabled. contentScrollDistance is used by default
-    /// 主ScrollView头部高度，用于判断是否在需要启用动态模拟的范围，默认使用contentScrollDistance判断
     @objc open var mainTopHeight: CGFloat = XMixScrollUndefinedValue
+
+    /// Whether to use all area for touch detection
+    @objc open var useAll = false
+
+    // MARK: - Public Read-Only Properties
+
+    @objc public private(set) var mainScrollView = UIScrollView()
+    @objc public private(set) var contentScrollViews = [UIScrollView]()
+
+    // MARK: - Public Methods
 
     /// Method of initialization
     /// - Parameters:
@@ -105,33 +109,33 @@ open class XMixScrollManager: NSObject {
     ///   - contentScrollViews: contentScrollViews
     @objc public init(scrollView: UIScrollView, contentScrollViews: [UIScrollView]?) {
         super.init()
-        let p = scrollView.property
-        p.isMain = true
-        p.canScroll = true
-        p.markScroll = true
-        p.scrollManager = self
-        scrollView.addObserver(self, forKeyPath: XKeyPath, options: .new, context: nil)
-        mainScrollView = scrollView
-        if let array = contentScrollViews {
-            self.contentScrollViews.append(contentsOf: array)
+
+        setupMainScrollView(scrollView)
+
+        if let scrollViews = contentScrollViews {
+            scrollViews.enumerated().forEach { index, scrollView in
+                addContentScrollView(scrollView, withIndex: index)
+            }
         }
-        for (index, contentScrollView) in self.contentScrollViews.enumerated() {
-            let p = contentScrollView.property
-            p.markScroll = true
-            p.index = index
-            p.scrollManager = self
-            contentScrollView.addObserver(self, forKeyPath: XKeyPath, options: .new, context: nil)
-        }
+
         showIndicatorType = .autoChange
     }
 
     deinit {
-        self.mainScrollView.removeObserver(self, forKeyPath: XKeyPath)
-        self.contentSuperScrollView?.removeObserver(self, forKeyPath: XKeyPath)
-        for contentScrollView in self.contentScrollViews {
-            contentScrollView.removeObserver(self, forKeyPath: XKeyPath)
+        mainScrollView.scrollViewProperty.observation = nil
+        mainScrollView.scrollViewProperty.markScroll = false
+        mainScrollView.scrollViewProperty.isMain = false
+        removeTouchObserver(from: mainScrollView)
+
+        for scrollView in contentScrollViews {
+            scrollView.scrollViewProperty.observation = nil
+            scrollView.scrollViewProperty.markScroll = false
+            scrollView.scrollViewProperty.scrollManager = nil
+            removeTouchObserver(from: scrollView)
         }
-//        print(NSStringFromClass(self.classForCoder) + "deinit")
+
+        contentSuperObservation = nil
+        _dynamicSimulate?.stop()
     }
 
     /// Delay setting the contentView
@@ -139,416 +143,536 @@ open class XMixScrollManager: NSObject {
     ///   - scrollView: content scrollView
     ///   - index: Index of content view, eg: horizontal position from left to right
     @objc open func addContentScrollView(_ scrollView: UIScrollView, withIndex index: Int) {
-        let p = scrollView.property
-        p.canScroll = !mainScrollView.property.canScroll
+        let p = scrollView.scrollViewProperty
+        p.canScroll = !mainScrollView.scrollViewProperty.canScroll
         p.markScroll = true
         p.index = index
         p.scrollManager = self
         p.needShowsVerticalScrollIndicator = showIndicatorType != .none
+
         if contentSuperScrollView == nil {
             hasGetContentSuper = false
         }
-        scrollView.addObserver(self, forKeyPath: XKeyPath, options: .new, context: nil)
+
+        addObservation(for: scrollView)
+        addTouchObserver(to: scrollView, isMain: false)
         contentScrollViews.append(scrollView)
+        checkScrollsToTop()
+    }
+
+    /// Remove a content scrollView
+    /// - Parameter scrollView: content scrollView to remove
+    @objc open func removeContentScrollView(_ scrollView: UIScrollView) {
+        scrollView.scrollViewProperty.observation = nil
+        scrollView.scrollViewProperty.markScroll = false
+        scrollView.scrollViewProperty.scrollManager = nil
+        removeTouchObserver(from: scrollView)
+        contentScrollViews.removeAll { $0 === scrollView }
         checkScrollsToTop()
     }
 
     /// Set IndicatorType for a content view, It only works when enableCustomConfig is true
     @objc open func setShowIndicatorType(_ showIndicatorType: XShowIndicatorType, contentScrollView: UIScrollView) {
-        if !contentScrollViews.contains(contentScrollView) {
-            return
-        }
-        indicatorTypeDic[contentScrollView.property.index] = showIndicatorType
+        let idx = contentScrollView.scrollViewProperty.index
+        guard idx < contentScrollViews.count, contentScrollViews[idx] === contentScrollView else { return }
+        indicatorTypeDic[idx] = showIndicatorType
     }
 
     /// Set PullType for a content view, It only works when enableCustomConfig is true
     @objc open func setScrollPullType(_ pullType: XMixScrollPullType, contentScrollView: UIScrollView) {
-        if !contentScrollViews.contains(contentScrollView) {
-            return
-        }
-        pullTypeDic[contentScrollView.property.index] = pullType
+        let idx = contentScrollView.scrollViewProperty.index
+        guard idx < contentScrollViews.count, contentScrollViews[idx] === contentScrollView else { return }
+        pullTypeDic[idx] = pullType
     }
 
     /// Set Whether Scrolls To Main Top for a content view, It only works when enableCustomConfig is true
     @objc open func setScrollsToMainTop(_ scrollsToMainTop: Bool, contentScrollView: UIScrollView) {
-        if !contentScrollViews.contains(contentScrollView) {
-            return
-        }
-        scrollsToMainTopDic[contentScrollView.property.index] = scrollsToMainTop
+        let idx = contentScrollView.scrollViewProperty.index
+        guard idx < contentScrollViews.count, contentScrollViews[idx] === contentScrollView else { return }
+        scrollsToMainTopDic[idx] = scrollsToMainTop
     }
 
     /// Set Whether setEnableDynamicSimulate for a content view, It only works when enableCustomConfig is true
-    @objc open func setEnableDynamicSimulate(_ EnableDynamicSimulate: Bool, contentScrollView: UIScrollView) {
-        if !contentScrollViews.contains(contentScrollView) {
-            return
-        }
-        enableDynamicDic[contentScrollView.property.index] = EnableDynamicSimulate
+    @objc open func setEnableDynamicSimulate(_ enableDynamicSimulate: Bool, contentScrollView: UIScrollView) {
+        let idx = contentScrollView.scrollViewProperty.index
+        guard idx < contentScrollViews.count, contentScrollViews[idx] === contentScrollView else { return }
+        enableDynamicDic[idx] = enableDynamicSimulate
     }
 
-    // MARK: -
+    // MARK: - Private Properties
 
     private var _mixScrollPullType: XMixScrollPullType = .main
     private var _scrollsToMainTop = true
     private var _enableDynamicSimulate = false
 
-    @objc public private(set) var mainScrollView = UIScrollView()
-    @objc public private(set) var contentScrollViews = [UIScrollView]()
-
-    /// 是否已获取到contentSuperScrollView
+    /// Whether contentSuperScrollView has been retrieved
     private var hasGetContentSuper = false
-    /// 内容视图的横向scrollView父视图
+    /// The horizontal scrollView parent of content views
     private var contentSuperScrollView: UIScrollView?
-    /// 是否touch在主视图里 内容视图之外
-    fileprivate var isTouchMain = false
+    /// Whether touch is in the main view area, outside content views
+    private var isTouchMain = false
 
-    /// 动态模拟
-    fileprivate lazy var dynamicSimulate: XDynamicSimulate = {
-        let dynamicSimulate = XDynamicSimulate()
-        dynamicSimulate.delegate = self
-        dynamicSimulate.resistance = self.dynamicResistance
-        return dynamicSimulate
-    }()
+    /// Dynamic simulation
+    private var _dynamicSimulate: XDynamicSimulate?
+    private var dynamicSimulate: XDynamicSimulate {
+        if let simulate = _dynamicSimulate {
+            return simulate
+        }
+        let simulate = XDynamicSimulate()
+        simulate.delegate = self
+        simulate.resistance = dynamicResistance
+        _dynamicSimulate = simulate
+        return simulate
+    }
 
-    /// 当前模拟中的contentScrollView index
+    /// Current simulating contentScrollView index
     private var currentSimulateIndex = 0
-    /// 当前展示的contentScrollView index
+    /// Current displayed contentScrollView index
     private var currentIndex = 0
-    /// Ignore it,  not important
-    /// 一般用不着  动态模拟判断时 不判断坐标点
-    open var useAll = false
 
-    // 单独设置属性相关
+    /// Individual property settings
     private var indicatorTypeDic = [Int: XShowIndicatorType]()
     private var pullTypeDic = [Int: XMixScrollPullType]()
     private var scrollsToMainTopDic = [Int: Bool]()
     private var enableDynamicDic = [Int: Bool]()
+
+    /// Block-based KVO observation for contentSuperScrollView
+    private var contentSuperObservation: NSKeyValueObservation?
 }
 
-// MARK: - XMixScrollManager privite func
+// MARK: - Setup & Observation
 
 private extension XMixScrollManager {
-    /// 校准scrollsToTop
+    func setupMainScrollView(_ scrollView: UIScrollView) {
+        let p = scrollView.scrollViewProperty
+        p.isMain = true
+        p.canScroll = true
+        p.markScroll = true
+        p.scrollManager = self
+        addObservation(for: scrollView)
+        addTouchObserver(to: scrollView, isMain: true)
+        mainScrollView = scrollView
+    }
+
+    func addObservation(for scrollView: UIScrollView) {
+        let p = scrollView.scrollViewProperty
+        guard p.observation == nil else { return }
+
+        p.observation = scrollView.observe(\.contentOffset, options: .new) { [weak self, weak scrollView] _, _ in
+            guard let self, let scrollView, self.contentScrollDistance != XMixScrollUndefinedValue else { return }
+            if scrollView.scrollViewProperty.isMain {
+                self.handleMainScroll(scrollView, offsetY: scrollView.contentOffset.y)
+            } else {
+                self.handleContentScroll(scrollView, offsetY: scrollView.contentOffset.y)
+            }
+        }
+    }
+
+    func observeContentSuperScrollView(_ scrollView: UIScrollView) {
+        guard contentSuperObservation == nil else { return }
+        contentSuperObservation = scrollView.observe(\.contentOffset, options: .new) { [weak self, weak scrollView] _, _ in
+            guard let self, let scrollView else { return }
+            self.handleHorizontalScroll(scrollView)
+        }
+    }
+
+    // MARK: - Touch Observer
+
+    func addTouchObserver(to scrollView: UIScrollView, isMain: Bool) {
+        let p = scrollView.scrollViewProperty
+        guard p.touchObserver == nil else { return }
+
+        let observer = XTouchObserverGesture()
+        observer.cancelsTouchesInView = false
+        observer.delaysTouchesBegan = false
+
+        observer.onTouchBegan = { [weak self] point in
+            guard let self else { return }
+            if self.enableDynamicSimulate {
+                self._dynamicSimulate?.stop()
+            }
+            if isMain {
+                if self.useAll {
+                    self.isTouchMain = point.y > 0
+                } else if self.mainTopHeight > 0, self.contentScrollDistance > 0 {
+                    self.isTouchMain = point.y < self.mainTopHeight
+                } else {
+                    self.isTouchMain = point.y < self.contentScrollDistance
+                }
+            }
+        }
+
+        scrollView.addGestureRecognizer(observer)
+        p.touchObserver = observer
+    }
+
+    func removeTouchObserver(from scrollView: UIScrollView) {
+        if let observer = scrollView.scrollViewProperty.touchObserver {
+            scrollView.removeGestureRecognizer(observer)
+        }
+        scrollView.scrollViewProperty.touchObserver = nil
+    }
+}
+
+// MARK: - Scroll Status Management
+
+private extension XMixScrollManager {
+    /// Check scrollsToTop status
     func checkScrollsToTop() {
         if scrollsToMainTop || contentSuperScrollView == nil {
             mainScrollView.scrollsToTop = true
             return
         }
-        let index = contentSuperScrollView!.property.index
-        if contentScrollViews.count > index {
-            let contentScrollView = contentScrollViews[index]
-            mainScrollView.scrollsToTop = !mainScrollView.scrollsToTop
-            contentScrollView.scrollsToTop = !mainScrollView.scrollsToTop
-            contentScrollView.property.canScroll = !mainScrollView.property.canScroll
-        } else {
+
+        guard let superScrollView = contentSuperScrollView else { return }
+        let index = superScrollView.scrollViewProperty.index
+        guard contentScrollViews.count > index else {
             mainScrollView.scrollsToTop = true
+            return
         }
+
+        let contentScrollView = contentScrollViews[index]
+        mainScrollView.scrollsToTop = false
+        contentScrollView.scrollsToTop = true
+        contentScrollView.scrollViewProperty.canScroll = !mainScrollView.scrollViewProperty.canScroll
     }
 
-    /// 切换 独立属性更新进度条状态
+    /// Update indicator state when custom config changes
     func checkCustomConfig() {
-        if !enableCustomConfig {
-            return
-        }
+        guard enableCustomConfig else { return }
+
         let indicatorType = indicatorTypeDic[currentIndex] ?? showIndicatorType
-        mainScrollView.property.needShowsVerticalScrollIndicator = indicatorType == .autoChange
-        if mainScrollView.property.canScroll {
-            mainScrollView.showsVerticalScrollIndicator = mainScrollView.property.needShowsVerticalScrollIndicator
+        mainScrollView.scrollViewProperty.needShowsVerticalScrollIndicator = indicatorType == .autoChange
+
+        if mainScrollView.scrollViewProperty.canScroll {
+            mainScrollView.showsVerticalScrollIndicator = mainScrollView.scrollViewProperty.needShowsVerticalScrollIndicator
         }
     }
 
-    /// check scrollsToTop status
+    /// Toggle main scroll view scrollability
     func changeMainScrollStatus(canScroll: Bool) {
-        if mainScrollView.property.canScroll == canScroll {
-            return
-        }
+        guard mainScrollView.scrollViewProperty.canScroll != canScroll else { return }
+
+        mainScrollView.scrollViewProperty.canScroll = canScroll
         mainScrollView.scrollsToTop = true
-        mainScrollView.property.canScroll = canScroll
-        for contentScrollView in contentScrollViews {
-            contentScrollView.property.canScroll = !canScroll
+        updateScrollIndicatorState(for: mainScrollView)
+
+        contentScrollViews.forEach { scrollView in
+            scrollView.scrollViewProperty.canScroll = !canScroll
+            updateScrollIndicatorState(for: scrollView)
             if canScroll {
-                contentScrollView.resetContentOffset()
+                scrollView.resetContentOffset()
             }
             if !scrollsToMainTop {
-                contentScrollView.scrollsToTop = !canScroll
+                scrollView.scrollsToTop = !canScroll
             }
         }
     }
 
-    /// 获取子scrollView的父scrollView
-    func checkContentSuperScrollView() {
-        if hasGetContentSuper {
-            return
-        }
-        hasGetContentSuper = true
-        var scrollView = contentScrollViews.first!.superview!
-        while !scrollView.isKind(of: UIScrollView.self) {
-            if let s = scrollView.superview {
-                scrollView = s
-            } else {
-                return
+    /// Update scroll indicator visibility based on current state
+    func updateScrollIndicatorState(for scrollView: UIScrollView) {
+        let p = scrollView.scrollViewProperty
+        if p.needShowsVerticalScrollIndicator {
+            scrollView.showsVerticalScrollIndicator = p.canScroll
+            if p.canScroll, !scrollView.isTracking, enableDynamicSimulate {
+                scrollView.flashScrollIndicators()
             }
+        } else {
+            scrollView.showsVerticalScrollIndicator = false
         }
-        contentSuperScrollView = scrollView as? UIScrollView
-        contentSuperScrollView?.addObserver(self, forKeyPath: XKeyPath, options: .new, context: nil)
+    }
+
+    /// Retrieve the parent horizontal scrollView of content scroll views
+    func checkContentSuperScrollView() {
+        guard !hasGetContentSuper, !contentScrollViews.isEmpty else { return }
+
+        hasGetContentSuper = true
+        guard let firstScrollView = contentScrollViews.first, var scrollView = firstScrollView.superview else { return }
+
+        while !scrollView.isKind(of: UIScrollView.self) {
+            guard let superview = scrollView.superview else { return }
+            scrollView = superview
+        }
+
+        guard let superScrollView = scrollView as? UIScrollView else { return }
+        contentSuperScrollView = superScrollView
+        observeContentSuperScrollView(superScrollView)
     }
 }
 
-// MARK: - 动态模拟 delegate
+// MARK: - Scroll Handling
+
+private extension XMixScrollManager {
+    func handleHorizontalScroll(_ scrollView: UIScrollView) {
+        guard scrollView.frame.size.width > 0 else { return }
+        let index = Int(scrollView.contentOffset.x / scrollView.frame.size.width)
+        guard index >= 0 else { return }
+        if scrollView.scrollViewProperty.index != index {
+            scrollView.scrollViewProperty.index = index
+            currentIndex = index
+            checkScrollsToTop()
+            checkCustomConfig()
+        }
+    }
+
+    func handleMainScroll(_ scrollView: UIScrollView, offsetY: CGFloat) {
+        if !scrollView.scrollViewProperty.canScroll {
+            handleMainScrollWhenCannotScroll(scrollView, offsetY: offsetY)
+            return
+        }
+
+        if enableDynamicSimulate, isTouchMain {
+            handleDynamicSimulation(scrollView)
+        }
+
+        if offsetY > contentScrollDistance || contentScrollDistance == 0 {
+            handleMainScrollRange(scrollView, offsetY: offsetY)
+        }
+
+        if offsetY < 0 {
+            handleMainScrollPull(scrollView)
+        }
+    }
+
+    func handleMainScrollWhenCannotScroll(_ scrollView: UIScrollView, offsetY: CGFloat) {
+        if offsetY == 0, contentScrollDistance != 0 {
+            changeMainScrollStatus(canScroll: true)
+            return
+        }
+
+        if offsetY != contentScrollDistance {
+            if !scrollView.isDragging {
+                changeMainScrollStatus(canScroll: true)
+                return
+            }
+            scrollView.contentOffset = CGPoint(x: 0, y: contentScrollDistance)
+        }
+    }
+
+    func handleDynamicSimulation(_ scrollView: UIScrollView) {
+        let state = scrollView.panGestureRecognizer.state
+        if state == .ended || state == .changed {
+            let velocity = scrollView.panGestureRecognizer.velocity(in: scrollView)
+            if velocity.y < 0, contentScrollViews.count > currentIndex {
+                currentSimulateIndex = currentIndex
+                dynamicSimulate.simulateWithVelocityY(velocity.y, dimension: Self.screenHeight(for: scrollView))
+            }
+        }
+    }
+
+    private static func screenHeight(for view: UIView) -> CGFloat {
+        if #available(iOS 13.0, *), let windowScene = view.window?.windowScene {
+            return windowScene.screen.bounds.height
+        }
+        return UIScreen.main.bounds.height
+    }
+
+    func handleMainScrollRange(_ scrollView: UIScrollView, offsetY: CGFloat) {
+        guard !contentScrollViews.isEmpty else {
+            changeMainScrollStatus(canScroll: true)
+            scrollView.contentOffset = CGPoint(x: 0, y: contentScrollDistance)
+            return
+        }
+
+        guard currentIndex < contentScrollViews.count else { return }
+        let contentScrollView = contentScrollViews[currentIndex]
+        let needMainScroll = contentScrollView.contentSize.height <= contentScrollView.frame.size.height
+
+        changeMainScrollStatus(canScroll: needMainScroll)
+        scrollView.contentOffset = CGPoint(x: 0, y: contentScrollDistance)
+    }
+
+    func handleMainScrollPull(_ scrollView: UIScrollView) {
+        if mixScrollPullType == .none || mixScrollPullType == .sub {
+            scrollView.resetContentOffset()
+        }
+    }
+
+    func handleContentScroll(_ scrollView: UIScrollView, offsetY: CGFloat) {
+        checkContentSuperScrollView()
+
+        if !scrollView.scrollViewProperty.canScroll {
+            handleContentScrollWhenCannotScroll(scrollView, offsetY: offsetY)
+            return
+        }
+
+        handleContentScrollRange(scrollView, offsetY: offsetY)
+        handleContentScrollToTop(scrollView)
+    }
+
+    func handleContentScrollWhenCannotScroll(_ scrollView: UIScrollView, offsetY: CGFloat) {
+        if offsetY > 0 {
+            if !scrollView.isDragging {
+                mainScrollView.scrollsToTop = true
+                return
+            }
+            scrollView.resetContentOffset()
+        } else if offsetY < 0 {
+            if mainScrollView.contentOffset.y > 0 {
+                scrollView.resetContentOffset()
+            } else if mixScrollPullType == .none || mixScrollPullType == .main {
+                scrollView.resetContentOffset()
+            }
+        }
+    }
+
+    func handleContentScrollRange(_ scrollView: UIScrollView, offsetY: CGFloat) {
+        if offsetY < 0 {
+            scrollView.resetContentOffset()
+            changeMainScrollStatus(canScroll: true)
+        } else if offsetY == 0 {
+            if let superView = contentSuperScrollView, superView.scrollViewProperty.index != scrollView.scrollViewProperty.index {
+                // Non-current contentScrollView, no processing needed
+            } else {
+                changeMainScrollStatus(canScroll: true)
+            }
+        }
+    }
+
+    func handleContentScrollToTop(_ scrollView: UIScrollView) {
+        if !scrollsToMainTop {
+            if let superView = contentSuperScrollView, superView.scrollViewProperty.index == scrollView.scrollViewProperty.index {
+                mainScrollView.scrollsToTop = false
+                scrollView.scrollsToTop = true
+            }
+        }
+    }
+}
+
+// MARK: - XDynamicSimulateDelegate
 
 extension XMixScrollManager: XDynamicSimulateDelegate {
     func willMoveY(_ movey: CGFloat) {
         handleWithMoveY(movey: -movey)
     }
 
-    func handleWithMoveY(movey: CGFloat) {
+    private func handleWithMoveY(movey: CGFloat) {
+        guard contentScrollDistance != XMixScrollUndefinedValue else { return }
+
         let distancey = contentScrollDistance - mainScrollView.contentOffset.y
         let d = distancey - movey
-        if d > 0, distancey > 0 {
-        } else {
-            let contentScrollView = contentScrollViews[currentSimulateIndex]
-            var subContentOffset = contentScrollView.contentOffset
-            let max = contentScrollView.contentSize.height - contentScrollView.frame.size.height
-            if contentScrollView.contentOffset.y == max {
-                return
-            }
-            subContentOffset.y += -d
-            if subContentOffset.y > max {
-                subContentOffset.y = max
-            }
-            contentScrollView.contentOffset = subContentOffset
-            mainScrollView.contentOffset = CGPoint(x: 0, y: contentScrollDistance)
-        }
+
+        guard d <= 0 || distancey <= 0 else { return }
+
+        guard contentScrollViews.count > currentSimulateIndex else { return }
+        let contentScrollView = contentScrollViews[currentSimulateIndex]
+
+        let maxOffset = max(0, contentScrollView.contentSize.height - contentScrollView.frame.size.height)
+        guard contentScrollView.contentOffset.y < maxOffset else { return }
+
+        var subContentOffset = contentScrollView.contentOffset
+        subContentOffset.y += -d
+        subContentOffset.y = min(subContentOffset.y, maxOffset)
+        subContentOffset.y = max(0, subContentOffset.y)
+
+        contentScrollView.contentOffset = subContentOffset
+        mainScrollView.contentOffset = CGPoint(x: 0, y: contentScrollDistance)
     }
 }
 
-// MARK: - XMixScrollManager srollView observer
-
-extension XMixScrollManager {
-    override open func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
-        guard keyPath == XKeyPath, contentScrollDistance != XMixScrollUndefinedValue else {
-            return
-        }
-        let scrollView = object as! UIScrollView
-        if !scrollView.property.markScroll {
-            // 横向父scrollView滑动处理
-            let index = Int(scrollView.contentOffset.x / scrollView.frame.size.width)
-            if scrollView.property.index != index {
-                scrollView.property.index = index
-                currentIndex = index
-                checkScrollsToTop()
-                checkCustomConfig()
-            }
-            return
-        }
-        let offsetY = scrollView.contentOffset.y
-        if scrollView.property.isMain {
-            if !scrollView.property.canScroll {
-                // 特殊情况手动归位时
-                if offsetY == 0, contentScrollDistance != 0 {
-                    changeMainScrollStatus(canScroll: true)
-                    return
-                }
-                // content scroll滑动时 固定main scroll
-                if offsetY != contentScrollDistance {
-                    // 点击状态栏触发scrollsToTop事件
-                    if !scrollView.isDragging {
-                        changeMainScrollStatus(canScroll: true)
-                        return
-                    }
-                    scrollView.contentOffset = CGPoint(x: 0, y: contentScrollDistance)
-                }
-                return
-            }
-            if enableDynamicSimulate, isTouchMain {
-                if scrollView.panGestureRecognizer.state == .ended || scrollView.panGestureRecognizer.state == .changed {
-                    let velocity = scrollView.panGestureRecognizer.velocity(in: scrollView)
-                    if velocity.y < 0, contentScrollViews.count > currentIndex {
-                        currentSimulateIndex = currentIndex
-                        dynamicSimulate.simulateWithVelocityY(velocity.y)
-                    }
-                }
-            }
-            // 超出范围content scroll 接手
-            if offsetY > contentScrollDistance || contentScrollDistance == 0 {
-                var needMainScroll = false
-                if contentScrollViews.count == 0 {
-                    needMainScroll = true
-                } else {
-                    if contentScrollViews.count == 1 {
-                        let contentScrollView = contentScrollViews.first!
-                        needMainScroll = contentScrollView.contentSize.height <= contentScrollView.frame.size.height
-                    }
-                }
-                changeMainScrollStatus(canScroll: needMainScroll)
-                scrollView.contentOffset = CGPoint(x: 0, y: contentScrollDistance)
-            }
-
-            // 是否允许下拉判断
-            if offsetY < 0 {
-                if mixScrollPullType == .none || mixScrollPullType == .sub {
-                    scrollView.resetContentOffset()
-                }
-            }
-        } else {
-            checkContentSuperScrollView()
-            if !scrollView.property.canScroll {
-                // main scroll滑动时 固定content scroll
-                if offsetY > 0 {
-                    if !scrollView.isDragging {
-                        mainScrollView.scrollsToTop = true
-                        return
-                    }
-                    scrollView.resetContentOffset()
-                } else if offsetY < 0 {
-                    if mainScrollView.contentOffset.y > 0 {
-                        scrollView.resetContentOffset()
-                    } else {
-                        // 是否允许下拉判断
-                        if mixScrollPullType == .none || mixScrollPullType == .main {
-                            scrollView.resetContentOffset()
-                        }
-                    }
-                }
-                return
-            }
-            // 超出范围main scroll 接手
-            if offsetY < 0 {
-                scrollView.resetContentOffset()
-                changeMainScrollStatus(canScroll: true)
-            } else if offsetY == 0 {
-                if let superView = contentSuperScrollView, superView.property.index != scrollView.property.index {
-                    // 非当前contentScrollView无需处理
-                } else {
-                    changeMainScrollStatus(canScroll: true)
-                }
-            } else {
-                if !scrollsToMainTop {
-                    if let superView = contentSuperScrollView, superView.property.index == scrollView.property.index {
-                        mainScrollView.scrollsToTop = false
-                        scrollView.scrollsToTop = true
-                    }
-                }
-            }
-        }
-    }
-}
+// MARK: - XScrollViewProperty
 
 private class XScrollViewProperty {
     var isMain = false
-    var canScroll = false {
-        didSet {
-            if needShowsVerticalScrollIndicator {
-                if canScroll {
-                    if !scrollView.isTracking, scrollManager.enableDynamicSimulate {
-                        scrollView.flashScrollIndicators()
-                    }
-                }
-                scrollView.showsVerticalScrollIndicator = canScroll
-            } else {
-                scrollView.showsVerticalScrollIndicator = false
-            }
-        }
-    }
-
+    var canScroll = false
     var needShowsVerticalScrollIndicator = false
     var markScroll = false
     var index = 0
-    weak var scrollView: UIScrollView!
-    weak var scrollManager: XMixScrollManager!
+    weak var scrollManager: XMixScrollManager?
+
+    /// Block-based KVO observation token (auto-removed when nilled)
+    var observation: NSKeyValueObservation?
+
+    /// Touch observer gesture recognizer reference
+    var touchObserver: XTouchObserverGesture?
 }
 
-// MARK: - UIScrollView category
+// MARK: - UIScrollView Extension
 
 private var kXScrollViewPropertyKey: UInt8 = 0
+
 extension UIScrollView: UIGestureRecognizerDelegate {
-    fileprivate var property: XScrollViewProperty {
-        var p = (objc_getAssociatedObject(self, &kXScrollViewPropertyKey) as? XScrollViewProperty)
-        if p == nil {
-            p = XScrollViewProperty()
-            objc_setAssociatedObject(self, &kXScrollViewPropertyKey, p, objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN)
-            p!.scrollView = self
+    fileprivate var scrollViewProperty: XScrollViewProperty {
+        if let p = objc_getAssociatedObject(self, &kXScrollViewPropertyKey) as? XScrollViewProperty {
+            return p
         }
-        return p!
+
+        let p = XScrollViewProperty()
+        objc_setAssociatedObject(self, &kXScrollViewPropertyKey, p, objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN)
+        return p
     }
 
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        if property.markScroll {
-            if let scrollView = otherGestureRecognizer.view as? UIScrollView, scrollView.property.markScroll {
-                return true
-            }
+        guard scrollViewProperty.markScroll else { return false }
+
+        if let otherScrollView = otherGestureRecognizer.view as? UIScrollView, otherScrollView.scrollViewProperty.markScroll {
+            return true
         }
+
         return false
     }
 
     func resetContentOffset() {
         contentOffset = .zero
     }
+}
 
-    override open func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        if let scrollManager = property.scrollManager {
-            if scrollManager.enableDynamicSimulate {
-                scrollManager.dynamicSimulate.stop()
-            }
-            if property.isMain {
-                if scrollManager.useAll {
-                    scrollManager.isTouchMain = point.y > 0
-                } else {
-                    if scrollManager.mainTopHeight > 0, scrollManager.contentScrollDistance > 0 {
-                        scrollManager.isTouchMain = point.y < scrollManager.mainTopHeight
-                    } else {
-                        scrollManager.isTouchMain = point.y < scrollManager.contentScrollDistance
-                    }
-                }
-            }
+// MARK: - Touch Observer Gesture
+
+/// Passive gesture recognizer that observes touch events without consuming them.
+/// Replaces the global point(inside:with:) swizzling approach — only affects managed scroll views.
+private class XTouchObserverGesture: UIGestureRecognizer {
+    var onTouchBegan: ((CGPoint) -> Void)?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesBegan(touches, with: event)
+        if let touch = touches.first, let view {
+            let point = touch.location(in: view)
+            onTouchBegan?(point)
         }
-        return super.point(inside: point, with: event)
+        // Fail immediately — we only observe, never recognize
+        state = .failed
     }
 }
 
-// MARK: - Dynamic Simulate 动态模拟
-
-private protocol XDynamicSimulateDelegate: NSObjectProtocol {
-    func willMoveY(_ movey: CGFloat)
-}
+// MARK: - Dynamic Simulate
 
 private class XDynamicItem: NSObject, UIDynamicItem {
     var transform: CGAffineTransform = .identity
-    lazy var bounds = {
-        CGRect(x: 0, y: 0, width: 1, height: 1)
-    }()
+    var bounds: CGRect {
+        return CGRect(x: 0, y: 0, width: 1, height: 1)
+    }
 
     var center: CGPoint = .zero
 }
 
 private class XDynamicSimulate: NSObject {
-    open var resistance: Float = 2
+    var resistance: CGFloat = 2
     fileprivate weak var delegate: XDynamicSimulateDelegate?
-    private var view: UIView!
-    private var animator: UIDynamicAnimator!
-    private var dynamicItem: XDynamicItem!
+    private let view = UIView()
+    private let dynamicItem = XDynamicItem()
+    private lazy var animator = UIDynamicAnimator(referenceView: view)
+    private var dimension: CGFloat = 0
 
-    override init() {
-        super.init()
-        view = UIView()
-        dynamicItem = XDynamicItem()
-        animator = UIDynamicAnimator(referenceView: view)
-    }
-
-    fileprivate func simulateWithVelocityY(_ velocityY: CGFloat) {
+    fileprivate func simulateWithVelocityY(_ velocityY: CGFloat, dimension: CGFloat) {
+        self.dimension = dimension
         animator.removeAllBehaviors()
         dynamicItem.center = view.bounds.origin
+
         let inertialBehavior = UIDynamicItemBehavior(items: [dynamicItem])
         inertialBehavior.addLinearVelocity(CGPoint(x: 0, y: velocityY), for: dynamicItem)
-        inertialBehavior.resistance = CGFloat(resistance)
+        inertialBehavior.resistance = resistance
+        inertialBehavior.angularResistance = 0
+
         var lastCenterY: CGFloat = 0
         inertialBehavior.action = { [weak self] in
-            guard let self = self else {
-                return
-            }
+            guard let self else { return }
             let currentY = self.dynamicItem.center.y - lastCenterY
+            guard abs(currentY) > 0.1 else { return }
             self.willMoveY(currentY)
             lastCenterY = self.dynamicItem.center.y
         }
+
         animator.addBehavior(inertialBehavior)
     }
 
@@ -557,8 +681,7 @@ private class XDynamicSimulate: NSObject {
     }
 
     private func willMoveY(_ movey: CGFloat) {
-        let height: CGFloat = UIScreen.main.bounds.height
-        delegate?.willMoveY(rubberBandDistance(offset: movey, dimension: height))
+        delegate?.willMoveY(Self.rubberBandDistance(offset: movey, dimension: dimension))
     }
 
     /* f(x, d, c) = (x * d * c) / (d + c * x)
@@ -566,11 +689,10 @@ private class XDynamicSimulate: NSObject {
      x – distance from the edge
      c – constant (UIScrollView uses 0.55)
      d – dimension, either width or height */
-    private func rubberBandDistance(offset: CGFloat, dimension: CGFloat) -> CGFloat {
+    private static func rubberBandDistance(offset: CGFloat, dimension: CGFloat) -> CGFloat {
         let constant: CGFloat = 0.55
         let absOffset = abs(offset)
-        var result: CGFloat = (constant * absOffset * dimension) / (dimension + constant * absOffset)
-        result = offset < 0 ? -result : result
-        return result
+        let result = (constant * absOffset * dimension) / (dimension + constant * absOffset)
+        return offset < 0 ? -result : result
     }
 }
